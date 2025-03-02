@@ -12,6 +12,8 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.Mth;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -38,8 +40,14 @@ public class DesirePathsFeature extends Feature {
 	@Label(name = "Chance to transform", description = "Chance for blocks to transform each tick")
 	public static Double chanceToTransform = 0.008d;
 	@Config
-	@Label(name = "Speed based chance", description = "If true, speed will increase/decrease based off speed. The 'Chance to transform' will be based on walking.")
+	@Label(name = "Speed based chance", description = "If true, speed will increase/decrease based off speed. The base chance 'Chance to transform' is when you walk.")
 	public static Boolean speedBasedChance = true;
+	@Config(min = 0d, max = 1d)
+	@Label(name = "Feather falling transform chance reduction", description = "Each level of Feather Falling will reduce the chance to transform by this percentage amount. E.g. with the default settings, Feather Falling IV will fully prevent blocks from transforming.")
+	public static Double featherFallingTransformChanceReduction = 0.25d;
+	@Config
+	@Label(name = "Crouch prevents transform", description = "If true, crouching will prevent blocks from transforming.")
+	public static Boolean crouchPreventsTransform = true;
 	@Config
 	@Label(name = "Break Tall Grass", description = "Tall grass is broken when grass is transformed")
 	public static Boolean breakTallGrass = true;
@@ -66,15 +74,21 @@ public class DesirePathsFeature extends Feature {
 	public void onPlayerTick(TickEvent.PlayerTickEvent event) {
 		if (!this.isEnabled()
 				|| event.player.level().isClientSide
-				|| event.player.isCrouching()
 				|| event.phase != TickEvent.Phase.START
 				|| !event.player.onGround())
+			return;
+
+		if (crouchPreventsTransform && event.player.isCrouching())
 			return;
 
 		float walkDistDelta = event.player.walkDist - event.player.walkDistO;
 		float chance = chanceToTransform.floatValue();
 		if (speedBasedChance)
 			chance *= walkDistDelta / 0.12f; //chance:0.12=x:walkDistDelta
+		if (featherFallingTransformChanceReduction > 0d) {
+			int featherFallingLvl = EnchantmentHelper.getEnchantmentLevel(Enchantments.FALL_PROTECTION, event.player);
+			chance *= 1f - featherFallingTransformChanceReduction.floatValue() * featherFallingLvl;
+		}
 		AABB bb = event.player.getBoundingBox().deflate(0.1d, 0.1d, 0.1d);
 		int mX = Mth.floor(bb.minX);
 		int mZ = Mth.floor(bb.minZ);
